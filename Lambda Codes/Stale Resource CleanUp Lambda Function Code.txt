@@ -1,0 +1,49 @@
+
+import boto3
+from datetime import datetime, timedelta
+import os
+
+sns_client = boto3.client('sns')
+ec2_client = boto3.client('ec2')
+SNS_TOPIC_ARN = os.environ['SNS_TOPIC_ARN']
+
+def lambda_handler(event, context):
+    # Define the cutoff date (7 days ago)
+    cutoff_date = datetime.now() - timedelta(days=7)
+    
+    # Find EBS volumes that are "available" (not attached) for more than 7 days
+    stale_volumes = []
+    volumes = ec2_client.describe_volumes(
+        Filters=[{'Name': 'status', 'Values': ['available']}]
+    )
+    for volume in volumes['Volumes']:
+        # Check if the volume has been detached for more than 7 days
+        if volume['CreateTime'] < cutoff_date:
+            stale_volumes.append(volume['VolumeId'])
+            ec2_client.delete_volume(VolumeId=volume['VolumeId'])
+
+    # Find snapshots that are older than 7 days and assumed "stale"
+    stale_snapshots = []
+    snapshots = ec2_client.describe_snapshots(
+        OwnerIds=['self']  # Only look at snapshots owned by this account
+    )
+    for snapshot in snapshots['Snapshots']:
+        # Check if the snapshot is older than the cutoff date
+        if snapshot['StartTime'] < cutoff_date:
+            stale_snapshots.append(snapshot['SnapshotId'])
+            ec2_client.delete_snapshot(SnapshotId=snapshot['SnapshotId'])
+
+    # Send notification with details of deleted resources
+    notification_message = f"Deleted stale EBS volumes: {stale_volumes} and snapshots: {stale_snapshots}."
+    sns_client.publish(
+        TopicArn=SNS_TOPIC_ARN,
+        Message=notification_message,
+        Subject="Stale EBS Resources Deleted"
+    )
+
+    # Log deleted resources in CloudWatch Logs
+    print(notification_message)
+    return {
+        'statusCode': 200,
+        'body': notification_message
+    }

@@ -1,0 +1,27 @@
+
+import boto3
+import json
+import os
+
+sns_client = boto3.client('sns')
+SNS_TOPIC_ARN = os.environ['SNS_TOPIC_ARN']
+
+def lambda_handler(event, context):
+    # Parse the EC2 instance termination event
+    for record in event['Records']:
+        message = json.loads(record['Sns']['Message'])
+        event_name = message['detail']['eventName']
+        instance_id = message['detail']['instanceId']
+        if event_name == "TerminateInstances":
+            # Compose notification message
+            notification_message = f"EC2 instance {instance_id} has been terminated."
+            # Publish to SNS
+            sns_client.publish(
+                TopicArn=SNS_TOPIC_ARN,
+                Message=notification_message,
+                Subject="EC2 Termination Alert"
+            )
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Notification sent for terminated EC2 instance.')
+    }
