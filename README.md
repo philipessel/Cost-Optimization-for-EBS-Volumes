@@ -1,1 +1,5 @@
-# Cost-Optimization-for-EBS-Volumes
+This project involves the creation of a cost optimization architecture using several AWS services. It automates the identification of terminated instances and deletion of stale Elastic Block Store (EBS) volumes and their associated snapshots. The solution relies on monitoring instance states (termination) using EventBridge, monitoring volumes and Snapshots using EventBridge and Lambda, triggering automation through Lambda and notifying administrators using Amazon SNS. AWS Cost Explorer and AWS Budgets will be used to monitor and track cost savings over time.
+
+The architecture will operate as follows:
+
+When an instance is terminated, EventBridge will detect the instance state and trigger Lambda function to send SNS notification to admin. A second EventBridge will be scheduled to trigger another Lambda function to query EBS volumes and snapshots on weekly basis. Anytime Lambda finds an EBS volume and Snapshot that have not been attached to instance for more than 7 days (stale resources), it will delete them. This same function will then send notification to administrator about the deletion of these stale resources and then create logs of them in CloudWatch logs. AWS Cost Explorer and AWS Budgets will at the same time be used to monitor and track cost savings over time.
